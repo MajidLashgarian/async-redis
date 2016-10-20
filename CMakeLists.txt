@@ -28,16 +28,8 @@ include_directories("/usr/local/include")
 link_directories("/usr/lib")
 link_directories("/usr/local/lib")
 
-add_library(event_loop 
+add_library(event_loop
   ${PROJECT_SOURCE_DIR}/event_loop/event_loop_ev.cpp)
-
-add_library(parser 
-  ${PROJECT_SOURCE_DIR}/parser/array_parser.cpp
-  ${PROJECT_SOURCE_DIR}/parser/bulk_string_parser.cpp
-  ${PROJECT_SOURCE_DIR}/parser/error_parser.cpp
-  ${PROJECT_SOURCE_DIR}/parser/number_parser.cpp
-  ${PROJECT_SOURCE_DIR}/parser/redis_response.cpp
-  ${PROJECT_SOURCE_DIR}/parser/simple_string_parser.cpp)
 
 target_link_libraries(event_loop ev)
 
@@ -45,12 +37,7 @@ install(TARGETS event_loop
   LIBRARY DESTINATION /usr/local/lib/
   ARCHIVE DESTINATION /usr/local/lib/)
 
-install(TARGETS parser
-  LIBRARY DESTINATION /usr/local/lib/
-  ARCHIVE DESTINATION /usr/local/lib/
-  )
-
 install(DIRECTORY ${PROJECT_INCLUDE_DIR}/ DESTINATION /usr/local/include)
 
-add_executable (test ${CMAKE_SOURCE_DIR}/test/main.cpp)
-target_link_libraries(test parser event_loop ev)
+add_executable (tcp_server ${CMAKE_SOURCE_DIR}/test/tcp_server.cpp)
+target_link_libraries(tcp_server event_loop ev)
