@@ -54,39 +54,36 @@ void event_loop_ev::read_handler(EV_P_ ev_io* w, int revents)
     return;
 
   socket_queue* sq = reinterpret_cast<socket_queue*>(w->data);
-
   auto &handlers = sq->read_handlers;
 
-  if (handlers.size() != 0)
+  if (handlers.size())
   {
     auto &action = handlers.front();
     action();
     handlers.pop();
   }
 
-  if (handlers.size() == 0)
+  if (!handlers.size())
     ev_io_stop(loop, &sq->read_watcher);
 }
 
 void event_loop_ev::write_handler(EV_P_ ev_io* w, int revents)
 {
-  if (revents & EV_ERROR) {
-    // LOG_ERR("WRONG EVENT ON read_handler");
+  if (revents & EV_ERROR)
     return;
-  }
 
   socket_queue* sq = reinterpret_cast<socket_queue*>(w->data);
 
   auto &handlers = sq->write_handlers;
 
-  if (handlers.size() != 0)
+  if (handlers.size())
   {
     auto &action = handlers.front();
     action();
     handlers.pop();
   }
 
-  if (handlers.size() == 0)
+  if (!handlers.size())
     ev_io_stop(loop, &sq->write_watcher);
 }
 
@@ -99,6 +96,7 @@ void event_loop_ev::timer_handler(EV_P_ ev_timer* w, int revents)
 
 void event_loop_ev::stop(ev_io& io)
 {
+  ev_clear_pending(loop_, &io);
   ev_io_stop(loop_, &io);
 }
 
@@ -114,7 +112,7 @@ event_loop_ev::socket_identifier_t event_loop_ev::watch(int fd)
 
 void event_loop_ev::unwatch(socket_identifier_t& id)
 {
-  id->free();
+  id->stop();
 }
 
 }}

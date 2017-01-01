@@ -49,7 +49,7 @@ namespace async_redis {
       }
 
       inline ssize_t send(const string& data) {
-        return ::send(fd_, data.data(), data.size(), 0);
+        return send(data.data(), data.size());
       }
 
       inline ssize_t send(const char *data, size_t len) {
@@ -88,11 +88,16 @@ namespace async_redis {
           return false;
         }
 
-        io_.async_write(id_, [this, data = std::move(data), cb]() -> void {
+        io_.async_write(id_, [this, data, cb]() -> void {
             auto sent_chunk = send(data);
 
-            if (sent_chunk < data.size() && sent_chunk != -1)
+            if(sent_chunk == -1)
+              close();
+
+            if (sent_chunk < data.size() && sent_chunk != -1) {
               async_write(data.substr(sent_chunk, data.size()), cb);
+              return;
+            }
 
             cb(sent_chunk);
           });
@@ -128,8 +133,6 @@ namespace async_redis {
 
             if (-1 == static_cast<SocketType&>(*this).connect(args...))
               return this->async_connect<SocketType>(timeout+1, handler, args...);
-            else
-              id_ = io_.watch(fd_);
 
             handler(is_connected());
           });
@@ -162,8 +165,10 @@ namespace async_redis {
       //TODO: well i guess retry with create_socket in these functions
       int connect_to(socket_t* socket_addr, int len) {
         int ret = ::connect(fd_, socket_addr, len);
-        if (!ret)
+        if (!ret) {
+          id_ = io_.watch(fd_);
           is_connected_ = true;
+        }
 
         return ret;
       }
@@ -175,7 +180,7 @@ namespace async_redis {
     private:
       bool is_connected_ = false;
       InputOutputHanler& io_;
-      socket_identifier_t id_ = nullptr;
+      socket_identifier_t id_;
       int fd_ = -1;
     };
   }

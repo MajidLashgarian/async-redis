@@ -17,7 +17,8 @@ namespace async_redis {
       enum EventState {
         Sub,
         Unsub,
-        Stream
+        Stream,
+        Disconnected
       };
 
       using parser_t     = typename ParserPolicy::parser;
@@ -39,9 +40,9 @@ namespace async_redis {
       bool is_watching() const
       { return this->is_connected() && is_watching_; }
 
-      void disconnect() {
-        if(socket_->is_connected())
-          socket_->close();
+      void disconnect()
+      {
+        socket_->close();
 
         pwatchers_.clear();
         watchers_.clear();
@@ -51,7 +52,6 @@ namespace async_redis {
       bool psubscribe(const std::list<string>& channels, watcher_cb_t&& cb)
       {
         assert(channels.size());
-
         string start_cmd = "psubscribe";
 
         for(auto &ch : channels) {
@@ -109,9 +109,6 @@ namespace async_redis {
           return false;
 
         socket_->async_write(data, [this](ssize_t sent_chunk_len) {
-          if (sent_chunk_len == -1)
-            return;
-
           if (is_watching_)
             return;
 
@@ -129,6 +126,7 @@ namespace async_redis {
         });
         return true;
       }
+
       void handle_message_event(parser_t& channel, parser_t& value)
       {
         const string& ch_key = channel->to_string();
@@ -204,10 +202,29 @@ namespace async_redis {
         assert(false);
       }
 
+      void report_disconnect()
+      {
+        //Swap it! cause if we call this->disconnect inside the functors
+        //then it will be freeing the stackframes of functions!
+        decltype(watchers_) t1, t2;
+        t1.swap(watchers_);
+        t2.swap(pwatchers_);
+
+        string str;
+
+        for(auto &w : t1)
+          w.second(str, nullptr, EventState::Disconnected);
+
+        for(auto &w : t2)
+          w.second(str, nullptr, EventState::Disconnected);
+
+        disconnect();
+      }
+
       void stream_received(ssize_t len)
       {
         if (len < 1)
-          return;
+          return report_disconnect();
 
         ssize_t acc = 0;
         while (acc < len)

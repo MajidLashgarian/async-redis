@@ -22,8 +22,14 @@ namespace async_redis {
       using monitor_t    = monitor<InputOutputHandler, socket_t, redis_resp_t>;
       using connection_t = connection<InputOutputHandler, socket_t, redis_resp_t>;
 
+
     public:
       using parser_t     = redis_resp_t::parser;
+
+      enum SentinelState {
+        Disconnected,
+        Watching
+      };
 
       sentinel(InputOutputHandler &event_loop)
         : conn_(std::make_unique<connection_t>(event_loop)),
@@ -40,6 +46,11 @@ namespace async_redis {
 
         connect_all(ip, port, connector);
         return true;
+      }
+
+      void disconnect() {
+        stream_->disconnect();
+        conn_->disconnect();
       }
 
       // void sentinels();
@@ -68,7 +79,7 @@ namespace async_redis {
         );
       }
 
-      using cb_watch_master_change_t = std::function<void (const std::vector<std::string>&& info)>;
+      using cb_watch_master_change_t = std::function<void (const std::vector<std::string>&& info, SentinelState state)>;
 
       inline
       bool watch_master_change(cb_watch_master_change_t&& fn)
@@ -78,13 +89,18 @@ namespace async_redis {
             using State = typename monitor_t::EventState;
 
             return stream_->subscribe({"+switch-master"},
-              [fn = std::move(fn)](const string& channel, parser_t event, State state) -> void
+              [this, fn = std::move(fn)](const string& channel, parser_t event, State state) -> void
               {
-                event->print();
                 switch(state)
                 {
                 case State::Stream:
-                  return fn(parse_watch_master_change(event));
+                  return fn(parse_watch_master_change(event), SentinelState::Watching);
+
+                case State::Disconnected:
+                  this->disconnect();
+                  std::cout << "ds" << std::endl;
+                  return fn({}, SentinelState::Disconnected);
+                  break;
 
                 default:
                   break;
@@ -184,10 +200,9 @@ namespace async_redis {
 
         is_connected_ = conn_->is_connected() && stream_->is_connected();
 
-        if (!is_connected_) {
-          conn_->disconnect();
-          stream_->disconnect();
-        }
+        if (!is_connected_)
+          disconnect();
+
 
         connected_ = 0;
         connector(is_connected_);

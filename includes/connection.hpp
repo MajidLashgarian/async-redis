@@ -37,10 +37,8 @@ namespace async_redis {
       inline int pressure() const
       { return req_queue_.size(); }
 
-      void disconnect()
-      {
-        if (socket_->is_connected())
-          socket_->close();
+      void disconnect() {
+        socket_->close();
       }
 
       void pipelined_send(string&& pipelined_cmds, std::vector<reply_cb_t>&& callbacks)

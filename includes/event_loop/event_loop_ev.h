@@ -52,15 +52,7 @@ namespace async_redis {
           read_watcher.data = this;
         }
 
-        void free() {
-          decltype(write_handlers) a;
-          decltype(read_handlers) b;
-
-          write_handlers.swap(a);
-          read_handlers.swap(b);
-        }
-
-        ~socket_queue() {
+        void stop() {
           loop_.stop(write_watcher);
           loop_.stop(read_watcher);
         }
