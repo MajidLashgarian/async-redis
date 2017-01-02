@@ -24,10 +24,8 @@ namespace async_redis {
 
       template<typename ...Args>
       inline void connect(Args... args) {
-        if (!socket_->is_valid()) {
+        if (!socket_->is_valid())
           socket_ = std::make_unique<SocketType>(event_loop_);
-          std::cout << "recreate" << std::endl;
-        }
 
         socket_->template async_connect<SocketType>(0, std::forward<Args>(args)...);
       }
