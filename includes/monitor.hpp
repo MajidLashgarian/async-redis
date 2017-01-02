@@ -25,12 +25,16 @@ namespace async_redis {
       using watcher_cb_t = std::function<void (const string&, parser_t, EventState)>;
 
       monitor(InputOutputHandler &event_loop)
-        : io_(event_loop),
-          socket_(std::make_unique<SocketType>(event_loop))
-      { }
+        : io_(event_loop)
+      {
+        socket_ = std::make_unique<SocketType>(event_loop);
+      }
 
       template<typename ...Args>
       inline void connect(Args... args) {
+        if (!socket_->is_valid())
+          socket_ = std::make_unique<SocketType>(io_);
+
         socket_->template async_connect<SocketType>(0, std::forward<Args>(args)...);
       }
 
@@ -223,7 +227,7 @@ namespace async_redis {
 
       void stream_received(ssize_t len)
       {
-        if (len < 1)
+        if (len == 0)
           return report_disconnect();
 
         ssize_t acc = 0;

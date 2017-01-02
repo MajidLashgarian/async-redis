@@ -48,6 +48,10 @@ namespace async_redis {
         close();
       }
 
+      inline bool is_valid() {
+        return fd_ != -1;
+      }
+
       inline ssize_t send(const string& data) {
         return send(data.data(), data.size());
       }
@@ -68,7 +72,8 @@ namespace async_redis {
         return ::accept(fd_, nullptr, nullptr);
       }
 
-      bool close() {
+      bool close()
+      {
         if (!is_connected_)
           return true;
 
@@ -83,15 +88,13 @@ namespace async_redis {
 
       bool async_write(const string& data, const ready_cb_t& cb)
       {
-        if (!is_connected() || !data.size()) {
-          throw std::runtime_error("not conncted! write");
+        if (!is_connected() || !data.size())
           return false;
-        }
 
         io_.async_write(id_, [this, data, cb]() -> void {
             auto sent_chunk = send(data);
 
-            if(sent_chunk == -1)
+            if(sent_chunk == 0)
               close();
 
             if (sent_chunk < data.size() && sent_chunk != -1) {
@@ -107,10 +110,8 @@ namespace async_redis {
 
       bool async_read(char *buffer, int max_len, const recv_cb_t& cb)
       {
-        if (!is_connected()) {
-          throw std::runtime_error("not conncted! read");
+        if (!is_connected())
           return false;
-        }
 
         io_.async_read(id_, [&, buffer, max_len,  cb]() -> void {
             auto l = receive(buffer, max_len);

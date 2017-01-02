@@ -29,14 +29,18 @@ struct monitor_test
       my_redis(std::make_unique<redis_client_t>(loop, 2)),
       n_ping(n)
   {
-    my_redis->connect(std::bind(&monitor_test::check_redis_connected, this, std::placeholders::_1), "192.168.2.65", 80);
+    start();
+  }
+
+  void start() {
+    my_redis->connect(std::bind(&monitor_test::check_redis_connected, this, std::placeholders::_1), "10.42.0.140", 80);
   }
 
   void check_redis_connected(bool status)
   {
     if (status) {
       std::cout << "RedisClient connected! \n";
-      my_monitor->connect(std::bind(&monitor_test::check_monitor_connected, this, std::placeholders::_1), "192.168.2.65", 80);
+      my_monitor->connect(std::bind(&monitor_test::check_monitor_connected, this, std::placeholders::_1), "10.42.0.140", 80);
     } else {
       std::cout << "REDIS DIDNT CONNECT!" << std::endl;
     }
@@ -71,6 +75,8 @@ struct monitor_test
       break;
     case State::Disconnected:
       std::cout << "Are we fucked" << std::endl;
+      my_redis->disconnect();
+      start();
       break;
 
     case State::Unsub:
@@ -119,7 +125,7 @@ struct sentinel_test
     : io_(ev),
       my_sen1(std::make_unique<sentinel_t>(ev))
   {
-    my_sen1->connect("192.168.2.65", 8080, std::bind(&sentinel_test::check_connected, this, std::placeholders::_1));
+    my_sen1->connect("10.42.0.140", 8080, std::bind(&sentinel_test::check_connected, this, std::placeholders::_1));
   }
 
   void check_connected(bool result)
@@ -166,8 +172,8 @@ int main(int argc, char** args)
 
   event_loop_ev loop;
 
-  // monitor_test monitor_mock(loop, 500);
-  sentinel_test sentinel_mock(loop);
+  monitor_test monitor_mock(loop, 10000);
+  // sentinel_test sentinel_mock(loop);
 
   // using unix_socket_t = async_redis::network::unix_socket<event_loop_ev>;
   // using tcp_socket_t = async_redis::network::tcp_socket<event_loop_ev>;

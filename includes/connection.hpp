@@ -24,11 +24,12 @@ namespace async_redis {
 
       template<typename ...Args>
       inline void connect(Args... args) {
-        socket_->template async_connect<SocketType>(0, std::forward<Args>(args)...);
-      }
+        if (!socket_->is_valid()) {
+          socket_ = std::make_unique<SocketType>(event_loop_);
+          std::cout << "recreate" << std::endl;
+        }
 
-      ~connection() {
-        disconnect();
+        socket_->template async_connect<SocketType>(0, std::forward<Args>(args)...);
       }
 
       bool is_connected() const
@@ -39,13 +40,16 @@ namespace async_redis {
 
       void disconnect() {
         socket_->close();
+        decltype(req_queue_) free_me;
+        free_me.swap(req_queue_);
       }
 
-      void pipelined_send(string&& pipelined_cmds, std::vector<reply_cb_t>&& callbacks)
+      bool pipelined_send(string&& pipelined_cmds, std::vector<reply_cb_t>&& callbacks)
       {
-        socket_->async_write(pipelined_cmds, [this, cbs = std::move(callbacks)](ssize_t sent_chunk_len) {
-            if (sent_chunk_len == -1)
-              return;
+        return
+          socket_->async_write(pipelined_cmds, [this, cbs = std::move(callbacks)](ssize_t sent_chunk_len) {
+            if (sent_chunk_len == 0)
+              return disconnect();
 
             if (!req_queue_.size() && cbs.size())
               socket_->async_read(data_, max_data_size, std::bind(&connection::reply_received, this, std::placeholders::_1));
@@ -55,14 +59,15 @@ namespace async_redis {
           });
       }
 
-      void send(const string&& command, const reply_cb_t& reply_cb)
+      bool send(const string&& command, const reply_cb_t& reply_cb)
       {
         bool read_it = !req_queue_.size();
         req_queue_.emplace(reply_cb, nullptr);
 
-        socket_->async_write(std::move(command), [this, read_it](ssize_t sent_chunk_len) {
-          if (sent_chunk_len == -1)
-            return;
+        return
+          socket_->async_write(std::move(command), [this, read_it](ssize_t sent_chunk_len) {
+            if (sent_chunk_len == 0)
+              return disconnect();
 
           if (read_it)
             socket_->async_read(data_, max_data_size, std::bind(&connection::reply_received, this, std::placeholders::_1));
@@ -72,8 +77,8 @@ namespace async_redis {
     protected:
       void reply_received(ssize_t len)
       {
-        if (len < 1)
-          return;
+        if (len == 0)
+          return disconnect();
 
         ssize_t acc = 0;
         while (acc < len && req_queue_.size())

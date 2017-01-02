@@ -37,7 +37,7 @@ namespace async_redis {
       { }
 
       bool is_connected() const
-      { return is_connected_; }
+      { return stream_->is_connected() && conn_->is_connected(); }
 
       bool connect(const string& ip, int port, connect_cb_t&& connector)
       {
@@ -98,7 +98,6 @@ namespace async_redis {
 
                 case State::Disconnected:
                   this->disconnect();
-                  std::cout << "ds" << std::endl;
                   return fn({}, SentinelState::Disconnected);
                   break;
 
@@ -133,7 +132,7 @@ namespace async_redis {
             using ::async_redis::parser::RespType;
 
             if (parsed_value->type() == RespType::Err)
-              cb(nullptr, -1, false);
+              return cb(nullptr, -1, false);
 
             int elems = 0;
 
@@ -198,14 +197,11 @@ namespace async_redis {
         if (++connected_ != 2)
           return;
 
-        is_connected_ = conn_->is_connected() && stream_->is_connected();
-
-        if (!is_connected_)
+        if (!is_connected())
           disconnect();
 
-
         connected_ = 0;
-        connector(is_connected_);
+        connector(is_connected());
       }
 
       bool send(std::list<string>&& words, typename connection_t::reply_cb_t&& reply)
@@ -216,13 +212,16 @@ namespace async_redis {
           cmd += " " + w;
         cmd += "\r\n";
 
-        conn_->send(std::move(cmd), std::move(reply));
-        return true; //TODO: return with send! fix send.
+        if (!conn_->send(std::move(cmd), std::move(reply))) {
+          disconnect();
+          return false;
+        }
+
+        return true;
       }
 
     private:
       int connected_ = 0;
-      bool is_connected_ = false;
       std::unique_ptr<monitor_t> stream_;
       std::unique_ptr<connection_t> conn_;
     };

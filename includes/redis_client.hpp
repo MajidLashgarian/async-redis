@@ -98,16 +98,20 @@ namespace async_redis {
         std::vector<reply_cb_t> cbs;
         pipelined_cbs_.swap(cbs);
 
-        get_connection().pipelined_send(std::move(buffer), std::move(cbs));
+        is_connected_ = get_connection().pipelined_send(std::move(buffer), std::move(cbs));
+        if (!is_connected_) {
+          disconnect();
+          throw connect_exception();
+        }
       }
 
       redis_client& pipeline_on() {
-        pipelined_state = true;
+        pipelined_state_ = true;
         return *this;
       }
 
       redis_client& pipeline_off() {
-        pipelined_state = false;
+        pipelined_state_ = false;
         return *this;
       }
 
@@ -124,8 +128,14 @@ namespace async_redis {
 
         cmd += "\r\n";
 
-        if (!pipelined_state)
-          return get_connection().send(std::move(cmd), reply);
+        if (!pipelined_state_) {
+          is_connected_ = get_connection().send(std::move(cmd), reply);
+          if(!is_connected_) {
+            disconnect();
+            throw connect_exception();
+          }
+          return;
+        }
 
         pipeline_buffer_ += cmd;
         pipelined_cbs_.push_back(std::move(reply));
@@ -162,7 +172,7 @@ namespace async_redis {
 
     private:
       std::string pipeline_buffer_;
-      bool pipelined_state = false;
+      bool pipelined_state_ = false;
       std::vector<reply_cb_t> pipelined_cbs_;
       std::vector<std::unique_ptr<connection_t>> conn_pool_;
       int con_rr_ctr_ = 0;
