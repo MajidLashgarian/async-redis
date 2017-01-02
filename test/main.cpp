@@ -6,10 +6,8 @@
 #include <parser/base_resp_parser.h>
 #include <network/tcp_socket.hpp>
 #include <network/unix_socket.hpp>
-#include <network/tcp_server.hpp>
 #include <monitor.hpp>
 #include <sentinel.hpp>
-#include <redis_sentinel.hpp>
 
 
 typedef async_redis::event_loop::event_loop_ev event_loop_ev;

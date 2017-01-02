@@ -8,6 +8,7 @@
 #include <connection.hpp>
 #include <memory>
 #include <istream>
+#include <sstream>
 
 namespace async_redis {
   namespace redis_impl
